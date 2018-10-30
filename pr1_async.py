@@ -1,7 +1,7 @@
 import urllib.request
 import urllib.error
 import re
-from multiprocessing import Queue, Pool
+from multiprocessing import Manager, Process, current_process
 import csv
 
 
@@ -10,13 +10,15 @@ def find_urls(current_url, html: str, shared_queue, shared_visited):
     v1 = r'href=[\'"]?(?!/)([^\'" >]+)'
     regex = r'a href\s?=\s?[\'"]?(?![\W(mailto:)])([^\'" >]+)'
     for new_url in re.findall(regex, html):
+        temp = shared_visited[current_url]
         if re.search('\.', new_url):
             if re.search('\.html', new_url) and re.search('/', new_url):
                 shared_queue.put(new_url)
-                shared_visited[current_url].append(new_url)
+                temp.append(new_url)
             elif not re.search('\.html', new_url) and not re.search('javascript:', new_url):
                 shared_queue.put(new_url)
-                shared_visited[current_url].append(new_url)
+                temp.append(new_url)
+        shared_visited[current_url] = temp
 
 
 def crawl(shared_queue, shared_visited):
@@ -24,6 +26,7 @@ def crawl(shared_queue, shared_visited):
         url = shared_queue.get()
         try:
             if url not in shared_visited:
+                # print(current_process().name, url)
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 page = urllib.request.urlopen(req)
                 shared_visited[url] = []
@@ -40,24 +43,22 @@ def crawl(shared_queue, shared_visited):
 
 
 if __name__ == '__main__':
-
-    visited = {}
-    url_queue = Queue(maxsize=0)
+    manager = Manager()
+    visited = manager.dict()
+    url_queue = manager.Queue()
     for link in open('urls3.txt', 'r'):
         link = link.strip()
         url_queue.put(link)
 
-    pool = Pool()
-    result = pool.map(crawl, url_queue)
-    # p = [Process(target=crawl, args=(url_queue, visited)) for i in range(4)]
-    #
-    # # start child processes
-    # for each in p:
-    #     each.start()
-    #
-    # # wait for all children to finish
-    # for each in p:
-    #     each.join()
+    p = [Process(target=crawl, args=(url_queue, visited)) for i in range(4)]
+
+    # start child processes
+    for each in p:
+        each.start()
+
+    # wait for all children to finish
+    for each in p:
+        each.join()
 
     with open('output_async.csv', 'w') as f:
         w = csv.writer(f)
