@@ -22,7 +22,7 @@ def find_urls(html: str):
 
 visited = {}
 url_queue = Queue(maxsize=0)
-for url in open('urls6.txt', 'r'):
+for url in open('urls3.txt', 'r'):
     url = url.strip()
     url_queue.put(url)
 
